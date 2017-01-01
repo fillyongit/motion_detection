@@ -5,6 +5,7 @@ import logging
 import glob
 import time
 import smtplib
+import subprocess
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -13,8 +14,11 @@ from email import encoders
 
 class CONSTANTS:
 	LOGFILE = os.path.join(os.getenv('HOME'), 'motion_detection.log')
+	SOUNDFILE = os.path.join(os.getenv('HOME'), 'example.mp3')
 	CAPTURE_VIDEO_TIME = 0.5 # minuti
-	NEXT_NOTIFY_TIME = 2 # minuti
+	NEXT_NOTIFY_TIME = 5 # minuti
+	FROMADDRESS = "filippini.alessio@gmail.com"
+	TOADDRESS = "filippini.alessio@gmail.com"
 
 	# il metodo magico seguente inibisce il set di una proprietà.
 	def __setattr__(self, *_):
@@ -24,13 +28,6 @@ CONST = CONSTANTS()
 
 logging.basicConfig(filename=CONST.LOGFILE, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%d/%m/%Y %H:%M:%S', filemode='w', level=logging.DEBUG)
 
-fromaddr = "filippini.alessio@gmail.com"
-toaddr = "filippini.alessio@gmail.com"
-msg = MIMEMultipart()
-msg['From'] = fromaddr
-msg['To'] = toaddr
-msg['Subject'] = "From Fillyhome motion detection thread 1"
- 
 bodytemplate = "Individuato movimento dalla webcam del tinello il %s"
 body = ""
 
@@ -58,10 +55,9 @@ if (os.path.exists(path) is False):
 else:
 	oldsize = getSize(path)
 
-var  = 1
 newsize = 0
 lastnotification = None
-while var == 1:
+while True:
 	newsize = getSize(path)
 	diff = datetime.now() - (lastnotification or datetime(1970, 1, 1)) 
 	logging.debug(diff)
@@ -71,9 +67,16 @@ while var == 1:
 			lastnotification = datetime.now()
 			logging.debug(lastnotification)		
 		
+			p = subprocess.Popen(["omxplayer", "-o", "local", CONST.SOUNDFILE])
+
 			time.sleep(CONST.CAPTURE_VIDEO_TIME * 60) # diamo il tempo a motion di registrare un swf un pò più corposo.
 			lastswf = getLastSwf(path)
 		
+			msg = MIMEMultipart()
+			msg['From'] = CONST.FROMADDRESS
+			msg['To'] = CONST.TOADDRESS
+			msg['Subject'] = "From Fillyhome motion detection thread 1"
+
 			body = bodytemplate % (time.strftime("%c"))
 			msg.attach(MIMEText(body, 'plain'))
 			
@@ -88,8 +91,6 @@ while var == 1:
 			encoders.encode_base64(part)
 			part.add_header('Content-Disposition', "attachment; filename= %s" % os.path.basename(lastswf)) 
 			msg.attach(part)
-			
-			logging.debug(msg.get_paylod())
 
 			text = msg.as_string()
 
@@ -99,7 +100,7 @@ while var == 1:
 			server.sendmail('filippini.alessio@gmail.com', 'filippini.alessio@gmail.com', text)
 			server.quit()
 		else:
-			logging.info("rilevato movimento ma non sono ancora passati " + CONST.NEXT_NOTIFY_TIME + " minuti dall'ultima notifica")
+			logging.info("rilevato movimento ma non sono ancora passati " + str(CONST.NEXT_NOTIFY_TIME) + " minuti dall'ultima notifica")
 	time.sleep(5)
 	
 	
