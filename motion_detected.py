@@ -13,8 +13,8 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 class CONSTANTS:
-	LOGFILE = os.path.join(os.getenv('HOME'), 'motion_detection.log')
-	SOUNDFILE = os.path.join(os.getenv('HOME'), 'example.mp3')
+	LOGFILE = os.path.join('/home/pi', 'motion_detection.log')
+	SOUNDFILE = os.path.join('/home/pi', 'example.mp3')
 	CAPTURE_VIDEO_TIME = 0.5 # minuti
 	NEXT_NOTIFY_TIME = 5 # minuti
 	FROMADDRESS = "filippini.alessio@gmail.com"
@@ -27,6 +27,8 @@ class CONSTANTS:
 CONST = CONSTANTS()
 
 logging.basicConfig(filename=CONST.LOGFILE, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%d/%m/%Y %H:%M:%S', filemode='w', level=logging.DEBUG)
+
+logging.info("MotionDetection avviato alle " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
 
 bodytemplate = "Individuato movimento dalla webcam del tinello il %s"
 body = ""
@@ -50,24 +52,26 @@ def getLastSwf(path):
 
 path = '/tmp/motion'
 oldsize = 0
-if (os.path.exists(path) is False):
-	quit()
-else:
-	oldsize = getSize(path)
+while (os.path.exists(path) is False):
+	time.sleep(5)
+
+oldsize = getSize(path)
 
 newsize = 0
 lastnotification = None
+notificationsnum = 0
 while True:
 	newsize = getSize(path)
 	diff = datetime.now() - (lastnotification or datetime(1970, 1, 1)) 
-	logging.debug(diff)
+	logging.debug("{0:.2f}".format(diff.seconds / 60))
 	if (newsize > oldsize): 
 		oldsize = newsize
-		if (diff.seconds > CONST.NEXT_NOTIFY_TIME * 60):
+		if (diff.seconds > CONST.NEXT_NOTIFY_TIME * 60 * ):
 			lastnotification = datetime.now()
 			logging.debug(lastnotification)		
-		
-			p = subprocess.Popen(["omxplayer", "-o", "local", CONST.SOUNDFILE])
+			
+			notificationsnum+=1
+			#p = subprocess.Popen(["omxplayer", "-o", "local", CONST.SOUNDFILE], subprocess.PIPE)
 
 			time.sleep(CONST.CAPTURE_VIDEO_TIME * 60) # diamo il tempo a motion di registrare un swf un pò più corposo.
 			lastswf = getLastSwf(path)
@@ -75,14 +79,13 @@ while True:
 			msg = MIMEMultipart()
 			msg['From'] = CONST.FROMADDRESS
 			msg['To'] = CONST.TOADDRESS
-			msg['Subject'] = "From Fillyhome motion detection thread 1"
+			msg['Subject'] = "Notifica da fillyhome webcam tinello"
 
 			body = bodytemplate % (time.strftime("%c"))
 			msg.attach(MIMEText(body, 'plain'))
 			
 			logging.info('rilevato movimento!')
 			logging.info('spedizione notifica')
-			logging.info(body)
 			logging.debug(lastswf)
 		
 			attachment = open(os.path.join(path, lastswf), "rb")
